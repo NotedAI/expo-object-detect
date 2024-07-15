@@ -15,27 +15,11 @@ import "@tensorflow/tfjs-react-native";
 const { width } = Dimensions.get("window");
 
 export default function App() {
-  const [facing, setFacing] = useState("front");
+  const [facing, setFacing] = useState("back");
   const [model, setModel] = useState(undefined);
   const [capturedPhoto, setCapturedPhoto] = useState(null);
+  const [prediction, setPrediction] = useState(null);
   const cameraRef = useRef(null);
-
-  // const [permission, requestPermission] = useCameraPermissions();
-
-  // if (!permission) {
-  //   return <View />;
-  // }
-  // if (!permission.granted) {
-  //   // Camera permissions are not granted yet.
-  //   return (
-  //     <View style={styles.container}>
-  //       <Text style={{ textAlign: "center" }}>
-  //         We need your permission to show the camera
-  //       </Text>
-  //       <Button onPress={requestPermission} title="grant permission" />
-  //     </View>
-  //   );
-  // }
 
   useEffect(() => {
     const loadModel = async () => {
@@ -64,26 +48,35 @@ export default function App() {
   };
 
   const toggleTakePic = async () => {
-    const startTime = new Date();
     if (cameraRef.current) {
       const photo = await cameraRef.current.takePictureAsync({ base64: true });
       setCapturedPhoto(photo.uri);
-      const imageTensor = decodeJpeg(
-        tf.util.encodeString(photo.base64, "base64"),
-        3
-      );
+      processImage(photo.uri);
+    }
+  };
 
-      // Normalize the image tensor values to float
-      const normalizedTensor = imageTensor.div(tf.scalar(255));
+  const processImage = async (uri) => {
+    const response = await fetch(uri, {}, { isBinary: true });
+    const imageData = await response.arrayBuffer();
+    const uint8Array = new Uint8Array(imageData);
 
-      console.log("Image captured and normalized:", normalizedTensor);
-      const prediction = model.predict(normalizedTensor);
-      console.log("Prediction: ", prediction);
+    // Decode the image data into a tensor
+    const imageTensor = decodeJpeg(uint8Array);
+    
+    const [height, width] = model.inputs[0].shape.slice(1, 3);
+    let imageResized = tf.image.resizeBilinear(imageTensor, [height, width]);
+    imageResized = imageResized.expandDims(0);
+    
+    if (model.inputs[0].dtype === 'float32') {
+      const inputMean = 127.5;
+      const inputStd = 127.5;
+      imageResized = imageResized.sub(tf.scalar(inputMean)).div(tf.scalar(inputStd));
     }
 
-    const endTime = new Date();
-    const timeElapsed = endTime - startTime;
-    console.log(`Time spent: ${timeElapsed} ms`);
+    console.log("ready to predict");
+    const res = model.predict(imageResized);
+    setPrediction(res);
+    console.log(prediction);
   };
 
   const toggleClear = () => {
@@ -93,7 +86,7 @@ export default function App() {
   return (
     <View style={styles.container}>
       <CameraView style={styles.camera} facing={facing} ref={cameraRef} />
-      <Image source={{ uri: capturedPhoto }} style={styles.capturedImage} />
+      {/* <Image source={{ uri: capturedPhoto }} style={styles.capturedImage} /> */}
       <View style={styles.buttonContainer}>
         <TouchableOpacity style={styles.button} onPress={toggleCameraFacing}>
           <Text style={styles.text}>Flip</Text>
