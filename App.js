@@ -4,7 +4,7 @@ import {
   Text,
   View,
   Dimensions,
-  Button,
+  Image,
   TouchableOpacity,
 } from "react-native";
 import { CameraView } from "expo-camera";
@@ -17,6 +17,7 @@ const { width } = Dimensions.get("window");
 export default function App() {
   const [facing, setFacing] = useState("front");
   const [model, setModel] = useState(undefined);
+  const [capturedPhoto, setCapturedPhoto] = useState(null);
   const cameraRef = useRef(null);
 
   // const [permission, requestPermission] = useCameraPermissions();
@@ -63,8 +64,10 @@ export default function App() {
   };
 
   const toggleTakePic = async () => {
+    const startTime = new Date();
     if (cameraRef.current) {
       const photo = await cameraRef.current.takePictureAsync({ base64: true });
+      setCapturedPhoto(photo.uri);
       const imageTensor = decodeJpeg(
         tf.util.encodeString(photo.base64, "base64"),
         3
@@ -77,17 +80,29 @@ export default function App() {
       const prediction = model.predict(normalizedTensor);
       console.log("Prediction: ", prediction);
     }
+
+    const endTime = new Date();
+    const timeElapsed = endTime - startTime;
+    console.log(`Time spent: ${timeElapsed} ms`);
+  };
+
+  const toggleClear = () => {
+    setCapturedPhoto(null);
   };
 
   return (
     <View style={styles.container}>
       <CameraView style={styles.camera} facing={facing} ref={cameraRef} />
+      <Image source={{ uri: capturedPhoto }} style={styles.capturedImage} />
       <View style={styles.buttonContainer}>
+        <TouchableOpacity style={styles.button} onPress={toggleCameraFacing}>
+          <Text style={styles.text}>Flip</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.button} onPress={toggleTakePic}>
           <Text style={styles.text}>Take</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.button} onPress={toggleCameraFacing}>
-          <Text style={styles.text}>Flip</Text>
+        <TouchableOpacity style={styles.button} onPress={toggleClear}>
+          <Text style={styles.text}>Clear</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -103,15 +118,19 @@ const styles = StyleSheet.create({
     width: width,
     height: width,
   },
+  capturedImage: {
+    width: width,
+    height: width,
+    marginTop: 5,
+  },
   buttonContainer: {
     flex: 1,
     flexDirection: "row",
     backgroundColor: "transparent",
-    margin: 64,
+    marginTop: 5,
   },
   button: {
     flex: 1,
-    alignSelf: "flex-end",
     alignItems: "center",
   },
   text: {
