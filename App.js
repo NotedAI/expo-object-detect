@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   StyleSheet,
   Text,
@@ -7,12 +7,35 @@ import {
   Button,
   TouchableOpacity,
 } from "react-native";
-import { CameraView, useCameraPermissions } from "expo-camera";
+import { CameraView } from "expo-camera";
 import * as tf from "@tensorflow/tfjs";
-import { bundleResourceIO } from "@tensorflow/tfjs-react-native";
+import { bundleResourceIO, decodeJpeg } from "@tensorflow/tfjs-react-native";
 import "@tensorflow/tfjs-react-native";
 
+const { width } = Dimensions.get("window");
+
 export default function App() {
+  const [facing, setFacing] = useState("front");
+  const [model, setModel] = useState(undefined);
+  const cameraRef = useRef(null);
+
+  // const [permission, requestPermission] = useCameraPermissions();
+
+  // if (!permission) {
+  //   return <View />;
+  // }
+  // if (!permission.granted) {
+  //   // Camera permissions are not granted yet.
+  //   return (
+  //     <View style={styles.container}>
+  //       <Text style={{ textAlign: "center" }}>
+  //         We need your permission to show the camera
+  //       </Text>
+  //       <Button onPress={requestPermission} title="grant permission" />
+  //     </View>
+  //   );
+  // }
+
   useEffect(() => {
     const loadModel = async () => {
       try {
@@ -25,44 +48,48 @@ export default function App() {
           bundleResourceIO(modelJson, modelWeights)
         );
 
-        console.log("TF model loaded succefully");
+        setModel(model);
 
+        console.log("TF model loaded succefully");
       } catch (error) {
         console.error("Error loading the model:", error);
       }
     };
-
     loadModel();
   }, []);
-  const [facing, setFacing] = useState("front");
-  const [permission, requestPermission] = useCameraPermissions();
-  if (!permission) {
-    return <View />;
-  }
-  if (!permission.granted) {
-    // Camera permissions are not granted yet.
-    return (
-      <View style={styles.container}>
-        <Text style={{ textAlign: "center" }}>
-          We need your permission to show the camera
-        </Text>
-        <Button onPress={requestPermission} title="grant permission" />
-      </View>
-    );
-  }
+
   const toggleCameraFacing = () => {
     setFacing((current) => (current === "back" ? "front" : "back"));
   };
 
+  const toggleTakePic = async () => {
+    if (cameraRef.current) {
+      const photo = await cameraRef.current.takePictureAsync({ base64: true });
+      const imageTensor = decodeJpeg(
+        tf.util.encodeString(photo.base64, "base64"),
+        3
+      );
+
+      // Normalize the image tensor values to float
+      const normalizedTensor = imageTensor.div(tf.scalar(255));
+
+      console.log("Image captured and normalized:", normalizedTensor);
+      const prediction = model.predict(normalizedTensor);
+      console.log("Prediction: ", prediction);
+    }
+  };
+
   return (
     <View style={styles.container}>
-      <CameraView style={styles.camera} facing={facing}>
-        <View style={styles.buttonContainer}>
-          <TouchableOpacity style={styles.button} onPress={toggleCameraFacing}>
-            <Text style={styles.text}>Flip Camera</Text>
-          </TouchableOpacity>
-        </View>
-      </CameraView>
+      <CameraView style={styles.camera} facing={facing} ref={cameraRef} />
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity style={styles.button} onPress={toggleTakePic}>
+          <Text style={styles.text}>Take</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.button} onPress={toggleCameraFacing}>
+          <Text style={styles.text}>Flip</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -73,7 +100,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   camera: {
-    flex: 1,
+    width: width,
+    height: width,
   },
   buttonContainer: {
     flex: 1,
@@ -89,6 +117,6 @@ const styles = StyleSheet.create({
   text: {
     fontSize: 24,
     fontWeight: "bold",
-    color: "white",
+    color: "black",
   },
 });
