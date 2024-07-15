@@ -1,14 +1,18 @@
 import React, { useState, useEffect } from "react";
-import { StatusBar } from "expo-status-bar";
-import { Platform, StyleSheet, Text, View, Dimensions } from "react-native";
-import { Camera } from "expo-camera";
+import {
+  StyleSheet,
+  Text,
+  View,
+  Dimensions,
+  Button,
+  TouchableOpacity,
+} from "react-native";
+import { CameraView, useCameraPermissions } from "expo-camera";
 import * as tf from "@tensorflow/tfjs";
 import { bundleResourceIO } from "@tensorflow/tfjs-react-native";
 import "@tensorflow/tfjs-react-native";
 
 export default function App() {
-  const [textContent, setTextContent] = useState("Loading...");
-
   useEffect(() => {
     const loadModel = async () => {
       try {
@@ -23,22 +27,42 @@ export default function App() {
 
         console.log("TF model loaded succefully");
 
-        
-        setTextContent("TF Lite model loaded successfully.");
       } catch (error) {
         console.error("Error loading the model:", error);
-        setTextContent("Failed to load the TF Lite model.");
       }
     };
 
     loadModel();
   }, []);
+  const [facing, setFacing] = useState("front");
+  const [permission, requestPermission] = useCameraPermissions();
+  if (!permission) {
+    return <View />;
+  }
+  if (!permission.granted) {
+    // Camera permissions are not granted yet.
+    return (
+      <View style={styles.container}>
+        <Text style={{ textAlign: "center" }}>
+          We need your permission to show the camera
+        </Text>
+        <Button onPress={requestPermission} title="grant permission" />
+      </View>
+    );
+  }
+  const toggleCameraFacing = () => {
+    setFacing((current) => (current === "back" ? "front" : "back"));
+  };
 
   return (
     <View style={styles.container}>
-      <Text>Hello world</Text>
-      <Text>{textContent}</Text>
-      <StatusBar style="auto" />
+      <CameraView style={styles.camera} facing={facing}>
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity style={styles.button} onPress={toggleCameraFacing}>
+            <Text style={styles.text}>Flip Camera</Text>
+          </TouchableOpacity>
+        </View>
+      </CameraView>
     </View>
   );
 }
@@ -46,8 +70,25 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
-    alignItems: "center",
     justifyContent: "center",
+  },
+  camera: {
+    flex: 1,
+  },
+  buttonContainer: {
+    flex: 1,
+    flexDirection: "row",
+    backgroundColor: "transparent",
+    margin: 64,
+  },
+  button: {
+    flex: 1,
+    alignSelf: "flex-end",
+    alignItems: "center",
+  },
+  text: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "white",
   },
 });
