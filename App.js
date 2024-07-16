@@ -43,11 +43,7 @@ export default function App() {
     loadModel();
   }, []);
 
-  const toggleCameraFacing = () => {
-    setFacing((current) => (current === "back" ? "front" : "back"));
-  };
-
-  const toggleTakePic = async () => {
+  const handleTakePic = async () => {
     if (cameraRef.current) {
       const photo = await cameraRef.current.takePictureAsync({ base64: true });
       setCapturedPhoto(photo.uri);
@@ -62,15 +58,17 @@ export default function App() {
 
     // Decode the image data into a tensor
     const imageTensor = decodeJpeg(uint8Array);
-    
+
     const [height, width] = model.inputs[0].shape.slice(1, 3);
     let imageResized = tf.image.resizeBilinear(imageTensor, [height, width]);
     imageResized = imageResized.expandDims(0);
-    
-    if (model.inputs[0].dtype === 'float32') {
+
+    if (model.inputs[0].dtype === "float32") {
       const inputMean = 127.5;
       const inputStd = 127.5;
-      imageResized = imageResized.sub(tf.scalar(inputMean)).div(tf.scalar(inputStd));
+      imageResized = imageResized
+        .sub(tf.scalar(inputMean))
+        .div(tf.scalar(inputStd));
     }
 
     console.log("ready to predict");
@@ -79,22 +77,28 @@ export default function App() {
     console.log(prediction);
   };
 
-  const toggleClear = () => {
-    setCapturedPhoto(null);
-  };
-
   return (
     <View style={styles.container}>
       <CameraView style={styles.camera} facing={facing} ref={cameraRef} />
       {/* <Image source={{ uri: capturedPhoto }} style={styles.capturedImage} /> */}
       <View style={styles.buttonContainer}>
-        <TouchableOpacity style={styles.button} onPress={toggleCameraFacing}>
+        <TouchableOpacity
+          style={styles.button}
+          onPress={() => {
+            setFacing((current) => (current === "back" ? "front" : "back"));
+          }}
+        >
           <Text style={styles.text}>Flip</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.button} onPress={toggleTakePic}>
+        <TouchableOpacity style={styles.button} onPress={handleTakePic}>
           <Text style={styles.text}>Take</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.button} onPress={toggleClear}>
+        <TouchableOpacity
+          style={styles.button}
+          onPress={() => {
+            setCapturedPhoto(null);
+          }}
+        >
           <Text style={styles.text}>Clear</Text>
         </TouchableOpacity>
       </View>
