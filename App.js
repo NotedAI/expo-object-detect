@@ -5,17 +5,21 @@ import {
   View,
   Dimensions,
   Image,
+  Button,
   TouchableOpacity,
 } from "react-native";
-import { CameraView } from "expo-camera";
+import { CameraView, useCameraPermissions } from "expo-camera";
+import * as ImageManipulator from "expo-image-manipulator";
 import * as tf from "@tensorflow/tfjs";
-import { bundleResourceIO, decodeJpeg } from "@tensorflow/tfjs-react-native";
+import { bundleResourceIO } from "@tensorflow/tfjs-react-native";
 import "@tensorflow/tfjs-react-native";
+import jpeg from "jpeg-js";
 
 const { width } = Dimensions.get("window");
 
 export default function App() {
   const [facing, setFacing] = useState("back");
+  const [permission, requestPermission] = useCameraPermissions();
   const [model, setModel] = useState(undefined);
   const [capturedPhoto, setCapturedPhoto] = useState(null);
   const [prediction, setPrediction] = useState(null);
@@ -43,38 +47,70 @@ export default function App() {
     loadModel();
   }, []);
 
+  if (!permission) {
+    // Camera permissions are still loading.
+    return <View />;
+  }
+  if (!permission.granted) {
+    // Camera permissions are not granted yet.
+    return (
+      <View style={styles.container}>
+        <Text style={styles.message}>
+          We need your permission to show the camera
+        </Text>
+        <Button onPress={requestPermission} title="grant permission" />
+      </View>
+    );
+  }
+
   const handleTakePic = async () => {
     if (cameraRef.current) {
-      const photo = await cameraRef.current.takePictureAsync({ base64: true });
-      setCapturedPhoto(photo.uri);
-      processImage(photo.uri);
+      const photo = await cameraRef.current.takePictureAsync({
+        quality: 0.3,
+        base64: true,
+      });
+      // scale photo to 400*400
+      const scaledPhoto = await ImageManipulator.manipulateAsync(
+        photo.uri,
+        [{ resize: { width: 40, height: 40 } }],
+        { base64: true }
+      );
+
+      convertImage2RGBArray(scaledPhoto.base64);
+      console.log("done");
     }
   };
-
-  const processImage = async (uri) => {
-    const response = await fetch(uri, {}, { isBinary: true });
-    const imageData = await response.arrayBuffer();
-    const uint8Array = new Uint8Array(imageData);
-
-    // Decode the image data into a tensor
-    const imageTensor = decodeJpeg(uint8Array);
-
-    const [height, width] = model.inputs[0].shape.slice(1, 3);
-    let imageResized = tf.image.resizeBilinear(imageTensor, [height, width]);
-    imageResized = imageResized.expandDims(0);
-
-    if (model.inputs[0].dtype === "float32") {
-      const inputMean = 127.5;
-      const inputStd = 127.5;
-      imageResized = imageResized
-        .sub(tf.scalar(inputMean))
-        .div(tf.scalar(inputStd));
+  const convertImage2RGBArray = (base64) => {
+    const buffer = Buffer.from(base64, "base64");
+    const rawImageData = jpeg.decode(buffer);
+    const { data, width, height } = rawImageData;
+    const rgbArray = [];
+    for (let i = 0; i < height; i++) {
+      const row = [];
+      for (let j = 0; j < width; j++) {
+        const idx = (i * width + j) * 4;
+        const r = data[idx];
+        const g = data[idx + 1];
+        const b = data[idx + 2];
+        // Ignore data[idx + 3] (alpha value)
+        row.push([r, g, b]);
+      }
+      rgbArray.push(row);
     }
 
-    console.log("ready to predict");
-    const res = model.predict(imageResized);
-    setPrediction(res);
-    console.log(prediction);
+    const resultArray = [rgbArray];
+
+    // const inputMean = 127.5;
+    // const inputStd = 127.5;
+    // resultArray = resultArray
+    //   .sub(tf.scalar(inputMean))
+    //   .div(tf.scalar(inputStd));
+
+    // const res = model.predict(imageResized);
+    // setPrediction(res);
+    // console.log(prediction);
+
+    console.log(resultArray[0]);
   };
 
   return (
@@ -97,6 +133,7 @@ export default function App() {
           style={styles.button}
           onPress={() => {
             setCapturedPhoto(null);
+            console.log("clear");
           }}
         >
           <Text style={styles.text}>Clear</Text>
@@ -116,8 +153,8 @@ const styles = StyleSheet.create({
     height: width,
   },
   capturedImage: {
-    width: width,
-    height: width,
+    width: 250,
+    height: 250,
     marginTop: 5,
   },
   buttonContainer: {
