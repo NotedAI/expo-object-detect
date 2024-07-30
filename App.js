@@ -24,8 +24,8 @@ const App = () => {
   useEffect(() => {
     const loadModel = async () => {
       await tf.ready();
-      const modelJson = require("./py/graph_model/model.json");
-      const modelWeights = require("./py/graph_model/combined_output.bin");
+      const modelJson = require("./assets/graph_model/model.json");
+      const modelWeights = require("./assets/graph_model/combined_output.bin");
       const model = await tf.loadGraphModel(
         bundleResourceIO(modelJson, modelWeights)
       );
